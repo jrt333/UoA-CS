@@ -82,50 +82,199 @@ def createInitializedGreyscalePixelArray(image_width, image_height, initValue=0)
 
 # Step 1.1
 def computeRGBToGreyscale(pixel_array_r, pixel_array_g, pixel_array_b, image_width, image_height):
-    greyscale_pixel_array = None
+    greyscale_pixel_array = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(image_height):
+        for x in range(image_width):
+            r = pixel_array_r[y][x]
+            g = pixel_array_g[y][x]
+            b = pixel_array_b[y][x]
+            value = 0.299 * r + 0.587 * g + 0.114 * b
+            greyscale_pixel_array[y][x] = int(round(value))
+
     return greyscale_pixel_array
 
 # Step 1.2
 def scaleTo0And255And5_95Percentile(pixel_array, image_width, image_height):
-    return pixel_array
+    flat = []
+    for row in pixel_array:
+        flat.extend(row)
+
+    flat_sorted = sorted(flat)
+    total = len(flat_sorted)
+    low_val = flat_sorted[math.floor(0.05 * total)]
+    high_val = flat_sorted[math.floor(0.95 * total)] - 1
+
+    if high_val <= low_val:
+        high_val = low_val + 1
+
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(image_height):
+        for x in range(image_width):
+            v = (pixel_array[y][x] - low_val) / (high_val - low_val) * 255.0
+            if v < 0:
+                v = 0
+            if v > 255:
+                v = 255
+            result[y][x] = int(round(v))
+
+    return result
 
 
 # Step 2 - compute the vertical and horizontal sobel filter
 def computeVerticalEdgesSobelAbsolute(pixel_array, image_width, image_height):
-    return pixel_array
+    kernel = [[-1, 0, 1],
+              [-2, 0, 2],
+              [-1, 0, 1]]
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(1, image_height-1):
+        for x in range(1, image_width-1):
+            accum = 0.0
+            for ky in range(-1, 2):
+                for kx in range(-1, 2):
+                    accum += pixel_array[y+ky][x+kx] * kernel[ky+1][kx+1]
+            result[y][x] = abs(accum) / 8.0
+
+    return result
 
 def computeHorizontalEdgesSobelAbsolute(pixel_array, image_width, image_height):
-    return pixel_array
+    kernel = [[1, 2, 1],
+              [0, 0, 0],
+              [-1, -2, -1]]
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(1, image_height-1):
+        for x in range(1, image_width-1):
+            accum = 0.0
+            for ky in range(-1, 2):
+                for kx in range(-1, 2):
+                    accum += pixel_array[y+ky][x+kx] * kernel[ky+1][kx+1]
+            result[y][x] = abs(accum) / 8.0
+
+    return result
 
 def computeEdgesSobelAbsolute(pixel_array_x, pixel_array_y, image_width, image_height):
-    pixel_array = None
-    return pixel_array
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(image_height):
+        for x in range(image_width):
+            result[y][x] = pixel_array_x[y][x] + pixel_array_y[y][x]
+            if result[y][x] > 255:
+                result[y][x] = 255
+
+    return result
 
 
 # Step 3- compute StandardDeviationImage7x7
 def computeStandardDeviationImage7x7(pixel_array, image_width, image_height):
-    return pixel_array
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    radius = 3
+    area = (2 * radius + 1) ** 2
+
+    for y in range(radius, image_height - radius):
+        for x in range(radius, image_width - radius):
+            sum_val = 0.0
+            sum_sq = 0.0
+            for j in range(-radius, radius + 1):
+                for i in range(-radius, radius + 1):
+                    v = pixel_array[y + j][x + i]
+                    sum_val += v
+                    sum_sq += v * v
+            mean = sum_val / area
+            variance = sum_sq / area - mean * mean
+            if variance < 0:
+                variance = 0
+            result[y][x] = math.sqrt(variance)
+
+    return result
 
 
 # Step 4 - compute the threshold values
 def computeThresholdGE(pixel_array, threshold_value, image_width, image_height):
-    return pixel_array
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    for y in range(image_height):
+        for x in range(image_width):
+            result[y][x] = 1 if pixel_array[y][x] >= threshold_value else 0
+    return result
 
 
 # Step 5.1 - compute the dilation
 def dilation(pixel_array, image_width, image_height, kernel_radius, num_of_iterations=1):
-    return pixel_array
+    result = pixel_array
+    for _ in range(num_of_iterations):
+        new_image = createInitializedGreyscalePixelArray(image_width, image_height)
+        for y in range(image_height):
+            for x in range(image_width):
+                val = 0
+                for j in range(-kernel_radius, kernel_radius + 1):
+                    for i in range(-kernel_radius, kernel_radius + 1):
+                        ny = y + j
+                        nx = x + i
+                        if 0 <= ny < image_height and 0 <= nx < image_width:
+                            if result[ny][nx] == 1:
+                                val = 1
+                                break
+                    if val == 1:
+                        break
+                new_image[y][x] = val
+        result = new_image
+    return result
 
 
 # Step 5.2 - compute the erosion
 def erosion(pixel_array, image_width, image_height, kernel_radius, num_of_iterations=1):
-    return pixel_array
+    result = pixel_array
+    for _ in range(num_of_iterations):
+        new_image = createInitializedGreyscalePixelArray(image_width, image_height)
+        for y in range(image_height):
+            for x in range(image_width):
+                val = 1
+                for j in range(-kernel_radius, kernel_radius + 1):
+                    for i in range(-kernel_radius, kernel_radius + 1):
+                        ny = y + j
+                        nx = x + i
+                        if 0 <= ny < image_height and 0 <= nx < image_width:
+                            if result[ny][nx] == 0:
+                                val = 0
+                                break
+                        else:
+                            val = 0
+                            break
+                    if val == 0:
+                        break
+                new_image[y][x] = val
+        result = new_image
+    return result
 
 
 # Step 6 - compute connected component labelling
 def computeConnectedComponentLabeling(binary_array, image_width, image_height):
     ccResult = createInitializedGreyscalePixelArray(image_width, image_height)
     component_labels = []
+    label = 1
+    for y in range(image_height):
+        for x in range(image_width):
+            if binary_array[y][x] != 0 and ccResult[y][x] == 0:
+                q = Queue()
+                q.enqueue((y, x))
+                ccResult[y][x] = label
+                min_x = x
+                max_x = x
+                min_y = y
+                max_y = y
+                while not q.isEmpty():
+                    cy, cx = q.dequeue()
+                    for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
+                        ny = cy + dy
+                        nx = cx + dx
+                        if 0 <= ny < image_height and 0 <= nx < image_width:
+                            if binary_array[ny][nx] != 0 and ccResult[ny][nx] == 0:
+                                ccResult[ny][nx] = label
+                                q.enqueue((ny, nx))
+                                if nx < min_x: min_x = nx
+                                if nx > max_x: max_x = nx
+                                if ny < min_y: min_y = ny
+                                if ny > max_y: max_y = ny
+                component_labels.append([min_x, min_y, max_x, max_y])
+                label += 1
+
     return ccResult, component_labels
 
 
@@ -136,6 +285,8 @@ def returnBBoxCoords(image, component_labels, image_width, image_height):
         return None
 
     bounding_box_list = []
+    for bbox in component_labels:
+        bounding_box_list.append(bbox)
     return bounding_box_list
 
 
